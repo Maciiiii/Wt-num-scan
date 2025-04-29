@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WhatsApp Number Scanner</title>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 100%;
+            margin: 0;
+            padding: 15px;
+            text-align: center;
+        }
+        h1 { color: #25D366; font-size: 24px; }
+        .input-group { margin: 15px 0; display: flex; flex-direction: column; }
+        input, select, button {
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background: #25D366;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:disabled { background: #cccccc; }
+        #scanner-container {
+            margin: 15px auto;
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            border: 2px dashed #25D366;
+            display: none;
+            position: relative;
+            overflow: hidden;
+        }
+        #scanner-viewfinder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 200px;
+            border: 2px solid #25D366;
+            box-sizing: border-box;
+        }
+        .message {
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        #error { color: red; }
+        #success { color: green; }
+        #camera-error { color: red; }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .button-group button {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <h1>WhatsApp Number Scanner</h1>
+    <p>Scan a phone number or enter manually:</p>
+
+    <div class="input-group">
+        <select id="countryCode">
+            <option value="91">India (+91)</option>
+            <option value="1">USA (+1)</option>
+            <option value="44">UK (+44)</option>
+            <option value="60">Malaysia (+60)</option>
+            <option value="65">Singapore (+65)</option>
+        </select>
+        <input type="tel" id="phoneNumber" placeholder="Enter 10-digit number" maxlength="10" inputmode="numeric">
+    </div>
+
+    <div class="button-group">
+        <button onclick="validateAndOpenWhatsApp()">Open WhatsApp</button>
+        <button id="scanBtn" onclick="toggleScanner()">Scan Number</button>
+    </div>
+
+    <button onclick="pasteFromClipboard()">Paste from Clipboard</button>
+
+    <div id="scanner-container">
+        <div id="scanner-viewfinder"></div>
+    </div>
+    <p id="camera-error" class="message"></p>
+    <p id="error" class="message"></p>
+    <p id="success" class="message"></p>
+    <p class="message">Point your camera at a phone number or QR code</p>
+
+    <script>
+        const phoneInput = document.getElementById('phoneNumber');
+        const countryCode = document.getElementById('countryCode');
+        const errorElement = document.getElementById('error');
+        const successElement = document.getElementById('success');
+        const cameraErrorElement = document.getElementById('camera-error');
+        const scannerContainer = document.getElementById('scanner-container');
+        const scanBtn = document.getElementById('scanBtn');
+        
+        let codeReader;
+        let isScanning = false;
+        let currentStream = null;
+
+        // Initialize scanner
+        window.onload = () => {
+            codeReader = new ZXing.BrowserQRCodeReader();
+            phoneInput.focus();
+        };
+
+        // Validate and open WhatsApp
+        function validateAndOpenWhatsApp() {
+            const number = phoneInput.value.trim();
+            errorElement.textContent = '';
+            successElement.textContent = '';
+
+            if (!/^\d{10}$/.test(number)) {
+                errorElement.textContent = "Please enter a valid 10-digit number!";
+                phoneInput.focus();
+                return;
+            }
+
+            const fullNumber = countryCode.value + number;
+            window.open(`https://wa.me/${fullNumber}`, '_blank');
+            successElement.textContent = "Opening WhatsApp...";
+        }
+
+        // Toggle scanner
+        async function toggleScanner() {
+            if (isScanning) {
+                await stopScanner();
+                return;
+            }
+
+            try {
+                // Check camera permissions
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                
+                // Store stream for cleanup
+                currentStream = stream;
+                
+                scannerContainer.style.display = 'block';
+                scanBtn.textContent = 'Stop Scanning';
+                isScanning = true;
+                cameraErrorElement.textContent = '';
+                errorElement.textContent = '';
+                
+                // Hide phone input when scanning
+                phoneInput.style.display = 'none';
+                document.querySelector('.input-group select').style.display = 'none';
+
+                await codeReader.decodeFromVideoDevice(undefined, 'scanner-container', (result, err) => {
+                    if (result) {
+                        const scannedNumber = extractPhoneNumber(result.text);
+                        if (scannedNumber.length === 10) {
+                            phoneInput.value = scannedNumber;
+                            stopScanner();
+                            successElement.textContent = "Number scanned successfully!";
+                            phoneInput.style.display = '';
+                            document.querySelector('.input-group select').style.display = '';
+                        }
+                    }
+                    
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        errorElement.textContent = "Couldn't scan. Try again or enter manually.";
+                    }
+                });
+            } catch (err) {
+                cameraErrorElement.textContent = "Camera error: " + getCameraErrorMessage(err);
+                stopScanner();
+            }
+        }
+
+        // Extract phone number from scanned text
+        function extractPhoneNumber(text) {
+            // Remove all non-digit characters
+            let numbers = text.replace(/\D/g, '');
+            
+            // If number starts with country code, remove it
+            const countryCodes = ['91', '1', '44', '60', '65'];
+            for (const code of countryCodes) {
+                if (numbers.startsWith(code)) {
+                    numbers = numbers.substring(code.length);
+                    break;
+                }
+            }
+            
+            // Return last 10 digits
+            return numbers.slice(-10);
+        }
+
+        // Get user-friendly camera error message
+        function getCameraErrorMessage(err) {
+            if (err.name === 'NotAllowedError') {
+                return "Please allow camera access in your browser settings";
+            } else if (err.name === 'NotFoundError') {
+                return "No camera found";
+            } else if (err.name === 'NotSupportedError') {
+                return "Page not loaded securely. Try https:// or localhost";
+            }
+            return err.message;
+        }
+
+        // Stop scanner
+        async function stopScanner() {
+            try {
+                if (codeReader) {
+                    await codeReader.reset();
+                }
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                    currentStream = null;
+                }
+                scannerContainer.style.display = 'none';
+                scanBtn.textContent = 'Scan Number';
+                isScanning = false;
+                phoneInput.style.display = '';
+                document.querySelector('.input-group select').style.display = '';
+            } catch (err) {
+                console.error("Error stopping scanner:", err);
+            }
+        }
+
+        // Paste from clipboard
+        async function pasteFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                const numbers = extractPhoneNumber(text);
+                if (numbers.length === 10) {
+                    phoneInput.value = numbers;
+                    successElement.textContent = "Number pasted!";
+                    phoneInput.focus();
+                } else {
+                    errorElement.textContent = "No valid 10-digit number found in clipboard!";
+                }
+            } catch (err) {
+                errorElement.textContent = "Clipboard access denied. Paste manually or type the number.";
+            }
+        }
+
+        // Auto-validate input
+        phoneInput.addEventListener('input', () => {
+            phoneInput.value = phoneInput.value.replace(/\D/g, '').slice(0, 10);
+        });
+        
+        // Handle back button on Android
+        window.addEventListener('popstate', () => {
+            if (isScanning) {
+                stopScanner();
+            }
+        });
+    </script>
+</body>
+</html>
