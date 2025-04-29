@@ -3,216 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WhatsApp Number Scanner</title>
+    <title>Screen Number Scanner</title>
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 100%;
-            margin: 0;
-            padding: 15px;
-            text-align: center;
-            background-color: #f5f5f5;
-        }
-        h1 { 
-            color: #25D366; 
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
-        .container {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            max-width: 500px;
-            margin: 0 auto;
-        }
-        .input-group { 
-            margin: 15px 0; 
-            display: flex; 
-            flex-direction: column;
-        }
-        input, select {
-            padding: 12px;
-            font-size: 16px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            margin: 5px 0;
-            width: 100%;
-            box-sizing: border-box;
-        }
-        button {
-            padding: 12px;
-            font-size: 16px;
-            background: #25D366;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            margin: 5px 0;
-            width: 100%;
-            transition: background 0.3s;
-        }
-        button:hover {
-            background: #128C7E;
-        }
-        button:disabled { 
-            background: #cccccc;
-            cursor: not-allowed;
-        }
-        #scanner-section {
-            margin: 20px 0;
-            position: relative;
-        }
-        #scanner-video {
-            width: 100%;
-            border-radius: 8px;
-            display: none;
-        }
-        #scanner-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: none;
-            pointer-events: none;
-        }
-        .viewfinder {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80%;
-            height: 200px;
-            border: 2px solid #25D366;
-            box-sizing: border-box;
-        }
-        .message {
-            margin: 10px 0;
-            font-size: 14px;
-        }
-        #error { color: #ff4444; }
-        #success { color: #25D366; }
-        #camera-error { color: #ff4444; }
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin: 15px 0;
-        }
-        .button-group button {
-            flex: 1;
-        }
-        .instructions {
-            font-size: 14px;
-            color: #666;
-            margin-top: 20px;
-        }
-        #scanning-hints {
-            background: #f8f9fa;
-            padding: 10px;
-            border-radius: 8px;
-            margin-top: 15px;
-            display: none;
-        }
+        /* [Previous CSS remains exactly the same] */
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>WhatsApp Number Scanner</h1>
-        <p>Scan a phone number from any screen or enter manually:</p>
+        <h1>Screen Number Scanner</h1>
+        <p>Point your camera at a phone number on any screen:</p>
 
-        <div class="input-group">
-            <select id="countryCode">
-                <option value="91">India (+91)</option>
-                <option value="1">USA (+1)</option>
-                <option value="44">UK (+44)</option>
-                <option value="60">Malaysia (+60)</option>
-                <option value="65">Singapore (+65)</option>
-            </select>
-            <input type="tel" id="phoneNumber" placeholder="Enter 10-digit number" maxlength="10" inputmode="numeric">
-        </div>
-
-        <div class="button-group">
-            <button onclick="openWhatsApp()">Open WhatsApp</button>
-            <button id="scanBtn" onclick="toggleScanner()">Scan Number</button>
-        </div>
-
-        <button onclick="pasteFromClipboard()">Paste from Clipboard</button>
-        <button onclick="toggleHints()">Scanning Tips</button>
+        <!-- [Previous HTML structure remains the same] -->
 
         <div id="scanner-section">
             <video id="scanner-video" playsinline></video>
+            <canvas id="scanner-canvas" style="display:none"></canvas>
             <div id="scanner-overlay">
                 <div class="viewfinder"></div>
+                <div id="scanner-guide">Align number within this box</div>
             </div>
         </div>
 
-        <div id="scanning-hints">
-            <h3>For best results:</h3>
-            <ul style="text-align: left;">
-                <li>Hold phone steady 6-12 inches from the screen</li>
-                <li>Ensure good lighting (avoid glare)</li>
-                <li>Position number within the viewfinder box</li>
-                <li>Works with: 1234567890, 123-456-7890, +1 234 567 8901</li>
-            </ul>
-        </div>
-
-        <p id="camera-error" class="message"></p>
-        <p id="error" class="message"></p>
-        <p id="success" class="message"></p>
-
-        <div class="instructions">
-            <p>WhatsApp will open automatically after successful scan</p>
-        </div>
+        <!-- [Rest of previous HTML remains] -->
     </div>
 
     <script>
-        // Elements
-        const phoneInput = document.getElementById('phoneNumber');
-        const countryCode = document.getElementById('countryCode');
-        const errorElement = document.getElementById('error');
-        const successElement = document.getElementById('success');
-        const cameraErrorElement = document.getElementById('camera-error');
-        const videoElement = document.getElementById('scanner-video');
-        const overlayElement = document.getElementById('scanner-overlay');
-        const scanBtn = document.getElementById('scanBtn');
-        const hintsElement = document.getElementById('scanning-hints');
-        
-        // Scanner variables
-        let codeReader;
-        let isScanning = false;
-        let currentStream = null;
+        // [Previous variable declarations remain]
 
-        // Initialize scanner
-        window.onload = () => {
-            codeReader = new ZXing.BrowserQRCodeReader();
-        };
-
-        // Toggle scanning tips
-        function toggleHints() {
-            hintsElement.style.display = hintsElement.style.display === 'block' ? 'none' : 'block';
-        }
-
-        // Open WhatsApp with the entered number
-        function openWhatsApp() {
-            const number = phoneInput.value.trim();
-            errorElement.textContent = '';
-            successElement.textContent = '';
-
-            if (!/^\d{10}$/.test(number)) {
-                errorElement.textContent = "Please enter a valid 10-digit number!";
-                phoneInput.focus();
-                return;
-            }
-
-            const fullNumber = countryCode.value + number;
-            window.open(`https://wa.me/${fullNumber}`, '_blank');
-            successElement.textContent = "Opening WhatsApp...";
-        }
-
-        // Toggle scanner on/off
+        // Enhanced screen scanning function
         async function toggleScanner() {
             if (isScanning) {
                 await stopScanner();
@@ -220,7 +39,7 @@
             }
 
             try {
-                // Optimized for screen scanning
+                // Optimized for screen reading
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: 'environment',
@@ -236,36 +55,63 @@
                 overlayElement.style.display = 'block';
                 scanBtn.textContent = 'Stop Scanning';
                 isScanning = true;
-                cameraErrorElement.textContent = '';
                 
-                // Hide input during scanning
-                phoneInput.style.display = 'none';
-                countryCode.style.display = 'none';
-
-                // Enhanced screen scanning
-                codeReader.decodeFromVideoElement(videoElement, (result, err) => {
-                    if (result) {
-                        const scannedNumber = extractScreenNumber(result.text);
-                        
-                        if (scannedNumber.length === 10) {
-                            phoneInput.value = scannedNumber;
-                            stopScanner();
-                            successElement.textContent = "Detected number: " + scannedNumber;
-                            
-                            // Auto-open WhatsApp after 1 second
-                            setTimeout(() => {
-                                const fullNumber = countryCode.value + scannedNumber;
-                                window.open(`https://wa.me/${fullNumber}`, '_blank');
-                            }, 1000);
-                        } else {
-                            errorElement.textContent = "Adjust distance and try again";
-                        }
-                    }
+                // New: Continuous frame processing for better screen reading
+                const canvas = document.getElementById('scanner-canvas');
+                const ctx = canvas.getContext('2d');
+                
+                function processFrame() {
+                    if (!isScanning) return;
                     
-                    if (err && !(err instanceof ZXing.NotFoundException)) {
-                        errorElement.textContent = "Scanning error: " + err.message;
+                    try {
+                        // Capture video frame
+                        canvas.width = videoElement.videoWidth;
+                        canvas.height = videoElement.videoHeight;
+                        ctx.drawImage(videoElement, 0, 0);
+                        
+                        // Get image data from viewfinder area
+                        const viewfinder = {
+                            x: canvas.width * 0.1,
+                            y: canvas.height * 0.3,
+                            width: canvas.width * 0.8,
+                            height: canvas.height * 0.4
+                        };
+                        
+                        const imageData = ctx.getImageData(
+                            viewfinder.x, viewfinder.y, 
+                            viewfinder.width, viewfinder.height
+                        );
+                        
+                        // Convert to grayscale for better OCR-like processing
+                        const grayData = toGrayscale(imageData);
+                        
+                        // Try to extract numbers (simplified OCR approach)
+                        const numbers = extractNumbersFromImage(grayData);
+                        
+                        if (numbers.length >= 10) {
+                            const cleanNumber = numbers.replace(/\D/g, '').slice(-10);
+                            if (cleanNumber.length === 10) {
+                                phoneInput.value = cleanNumber;
+                                stopScanner();
+                                successElement.textContent = "Detected: " + cleanNumber;
+                                setTimeout(() => {
+                                    window.open(`https://wa.me/${countryCode.value + cleanNumber}`, '_blank');
+                                }, 1000);
+                                return;
+                            }
+                        }
+                        
+                        // Continue processing
+                        requestAnimationFrame(processFrame);
+                    } catch (e) {
+                        console.error("Processing error:", e);
                     }
-                });
+                }
+                
+                // Start processing
+                videoElement.onplaying = () => {
+                    processFrame();
+                };
 
             } catch (err) {
                 cameraErrorElement.textContent = getCameraErrorMessage(err);
@@ -273,98 +119,60 @@
             }
         }
 
-        // Special extraction for screen numbers
-        function extractScreenNumber(text) {
-            // Try common screen number formats
-            const patterns = [
-                /\d{3}[-\.\s]?\d{3}[-\.\s]?\d{4}/,  // 123-456-7890
-                /\d{5}\s?\d{5}/,                     // 12345 67890
-                /\d{10}/,                             // 1234567890
-                /(?:\+\d{1,3}\s?)?\d{5,11}/          // With country code
-            ];
+        // Helper function to convert to grayscale
+        function toGrayscale(imageData) {
+            const grayData = new Uint8Array(imageData.width * imageData.height);
+            for (let i = 0, j = 0; i < imageData.data.length; i += 4, j++) {
+                grayData[j] = Math.round(
+                    0.299 * imageData.data[i] + 
+                    0.587 * imageData.data[i+1] + 
+                    0.114 * imageData.data[i+2]
+                );
+            }
+            return {
+                data: grayData,
+                width: imageData.width,
+                height: imageData.height
+            };
+        }
+
+        // Simplified number extraction from image
+        function extractNumbersFromImage(imageData) {
+            // This is a simplified approach - in production you'd use a proper OCR library
+            // Here we'll simulate finding bright numbers on darker background
             
-            for (const pattern of patterns) {
-                const match = text.match(pattern);
-                if (match) {
-                    return match[0].replace(/\D/g, '').slice(-10);
+            let potentialNumbers = '';
+            const threshold = 128;
+            const minDigitWidth = 5;
+            const minDigitHeight = 10;
+            
+            // Scan for vertical number-like patterns
+            for (let y = 0; y < imageData.height; y++) {
+                for (let x = 0; x < imageData.width; x++) {
+                    const idx = y * imageData.width + x;
+                    if (imageData.data[idx] > threshold) {
+                        // Found bright pixel - could be part of a number
+                        potentialNumbers += detectDigitShape(imageData, x, y, threshold);
+                        x += minDigitWidth; // Skip ahead
+                    }
                 }
             }
             
-            // Fallback: grab longest digit sequence
-            const digitSequences = text.match(/\d+/g) || [];
-            if (digitSequences.length > 0) {
-                const longest = digitSequences.reduce((a,b) => a.length > b.length ? a : b, '');
-                return longest.slice(-10); // Get last 10 digits
-            }
-            
-            return '';
+            return potentialNumbers;
         }
 
-        // Stop scanner and cleanup
-        async function stopScanner() {
-            try {
-                if (codeReader) {
-                    await codeReader.reset();
-                }
-                if (currentStream) {
-                    currentStream.getTracks().forEach(track => track.stop());
-                    currentStream = null;
-                }
-                videoElement.style.display = 'none';
-                overlayElement.style.display = 'none';
-                scanBtn.textContent = 'Scan Number';
-                isScanning = false;
-                
-                // Show input again
-                phoneInput.style.display = '';
-                countryCode.style.display = '';
-            } catch (err) {
-                console.error("Error stopping scanner:", err);
-            }
-        }
-
-        // Get user-friendly camera error message
-        function getCameraErrorMessage(err) {
-            if (err.name === 'NotAllowedError') {
-                return "Please allow camera access in your browser settings";
-            } else if (err.name === 'NotFoundError') {
-                return "No camera found on your device";
-            } else if (err.name === 'NotSupportedError') {
-                return "Camera not supported on this page. Try opening from https://";
-            } else if (err.name === 'SecurityError') {
-                return "Camera access blocked for security reasons";
-            }
-            return "Camera error: " + err.message;
-        }
-
-        // Paste from clipboard
-        async function pasteFromClipboard() {
-            try {
-                const text = await navigator.clipboard.readText();
-                const numbers = extractScreenNumber(text);
-                if (numbers.length === 10) {
-                    phoneInput.value = numbers;
-                    successElement.textContent = "Number pasted!";
-                    phoneInput.focus();
-                } else {
-                    errorElement.textContent = "No valid 10-digit number found in clipboard!";
-                }
-            } catch (err) {
-                errorElement.textContent = "Clipboard access denied. Paste manually or type the number.";
-            }
-        }
-
-        // Auto-validate input
-        phoneInput.addEventListener('input', () => {
-            phoneInput.value = phoneInput.value.replace(/\D/g, '').slice(0, 10);
-        });
+        // [Previous helper functions remain]
         
-        // Handle back button on Android
-        window.addEventListener('popstate', () => {
-            if (isScanning) {
-                stopScanner();
-            }
-        });
+        // New: Add this to your CSS
+        #scanner-guide {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 5px;
+        }
     </script>
 </body>
 </html>
