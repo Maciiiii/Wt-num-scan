@@ -109,12 +109,19 @@
             color: #666;
             margin-top: 20px;
         }
+        #scanning-hints {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>WhatsApp Number Scanner</h1>
-        <p>Scan a phone number or enter manually:</p>
+        <p>Scan a phone number from any screen or enter manually:</p>
 
         <div class="input-group">
             <select id="countryCode">
@@ -133,6 +140,7 @@
         </div>
 
         <button onclick="pasteFromClipboard()">Paste from Clipboard</button>
+        <button onclick="toggleHints()">Scanning Tips</button>
 
         <div id="scanner-section">
             <video id="scanner-video" playsinline></video>
@@ -141,17 +149,22 @@
             </div>
         </div>
 
+        <div id="scanning-hints">
+            <h3>For best results:</h3>
+            <ul style="text-align: left;">
+                <li>Hold phone steady 6-12 inches from the screen</li>
+                <li>Ensure good lighting (avoid glare)</li>
+                <li>Position number within the viewfinder box</li>
+                <li>Works with: 1234567890, 123-456-7890, +1 234 567 8901</li>
+            </ul>
+        </div>
+
         <p id="camera-error" class="message"></p>
         <p id="error" class="message"></p>
         <p id="success" class="message"></p>
 
         <div class="instructions">
-            <p>How to use:</p>
-            <ol style="text-align: left; padding-left: 20px;">
-                <li>Select your country code</li>
-                <li>Enter a 10-digit number or scan one</li>
-                <li>WhatsApp will open automatically after scanning</li>
-            </ol>
+            <p>WhatsApp will open automatically after successful scan</p>
         </div>
     </div>
 
@@ -165,6 +178,7 @@
         const videoElement = document.getElementById('scanner-video');
         const overlayElement = document.getElementById('scanner-overlay');
         const scanBtn = document.getElementById('scanBtn');
+        const hintsElement = document.getElementById('scanning-hints');
         
         // Scanner variables
         let codeReader;
@@ -175,6 +189,11 @@
         window.onload = () => {
             codeReader = new ZXing.BrowserQRCodeReader();
         };
+
+        // Toggle scanning tips
+        function toggleHints() {
+            hintsElement.style.display = hintsElement.style.display === 'block' ? 'none' : 'block';
+        }
 
         // Open WhatsApp with the entered number
         function openWhatsApp() {
@@ -201,19 +220,18 @@
             }
 
             try {
-                // Start camera
+                // Optimized for screen scanning
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        focusMode: 'continuous'
                     }
                 });
                 
                 currentStream = stream;
                 videoElement.srcObject = stream;
-                
-                // Show video and overlay
                 videoElement.style.display = 'block';
                 overlayElement.style.display = 'block';
                 scanBtn.textContent = 'Stop Scanning';
@@ -224,48 +242,62 @@
                 phoneInput.style.display = 'none';
                 countryCode.style.display = 'none';
 
-                // Start scanning - MODIFIED TO AUTO-OPEN WHATSAPP
+                // Enhanced screen scanning
                 codeReader.decodeFromVideoElement(videoElement, (result, err) => {
                     if (result) {
-                        const scannedNumber = extractPhoneNumber(result.text);
+                        const scannedNumber = extractScreenNumber(result.text);
+                        
                         if (scannedNumber.length === 10) {
                             phoneInput.value = scannedNumber;
                             stopScanner();
-                            successElement.textContent = "Opening WhatsApp...";
+                            successElement.textContent = "Detected number: " + scannedNumber;
                             
-                            // Auto-open WhatsApp after short delay
+                            // Auto-open WhatsApp after 1 second
                             setTimeout(() => {
                                 const fullNumber = countryCode.value + scannedNumber;
                                 window.open(`https://wa.me/${fullNumber}`, '_blank');
-                            }, 300);
+                            }, 1000);
+                        } else {
+                            errorElement.textContent = "Adjust distance and try again";
                         }
                     }
                     
                     if (err && !(err instanceof ZXing.NotFoundException)) {
-                        errorElement.textContent = "Couldn't scan. Try again or enter manually.";
+                        errorElement.textContent = "Scanning error: " + err.message;
                     }
                 });
 
             } catch (err) {
-                cameraErrorElement.textContent = "Camera error: " + getCameraErrorMessage(err);
+                cameraErrorElement.textContent = getCameraErrorMessage(err);
                 stopScanner();
             }
         }
 
-        // Enhanced number extraction function
-        function extractPhoneNumber(text) {
-            // First try to find a phone number pattern
-            const phonePattern = /(\+\d{1,3}[- ]?)?(\d{3,4}[- ]?){2,3}\d{3,4}/;
-            const match = text.match(phonePattern);
+        // Special extraction for screen numbers
+        function extractScreenNumber(text) {
+            // Try common screen number formats
+            const patterns = [
+                /\d{3}[-\.\s]?\d{3}[-\.\s]?\d{4}/,  // 123-456-7890
+                /\d{5}\s?\d{5}/,                     // 12345 67890
+                /\d{10}/,                             // 1234567890
+                /(?:\+\d{1,3}\s?)?\d{5,11}/          // With country code
+            ];
             
-            if (match) {
-                // Clean the matched number
-                return match[0].replace(/\D/g, '').slice(-10);
+            for (const pattern of patterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    return match[0].replace(/\D/g, '').slice(-10);
+                }
             }
             
-            // Fallback: remove all non-digits and take last 10
-            const digitsOnly = text.replace(/\D/g, '');
-            return digitsOnly.slice(-10);
+            // Fallback: grab longest digit sequence
+            const digitSequences = text.match(/\d+/g) || [];
+            if (digitSequences.length > 0) {
+                const longest = digitSequences.reduce((a,b) => a.length > b.length ? a : b, '');
+                return longest.slice(-10); // Get last 10 digits
+            }
+            
+            return '';
         }
 
         // Stop scanner and cleanup
@@ -309,7 +341,7 @@
         async function pasteFromClipboard() {
             try {
                 const text = await navigator.clipboard.readText();
-                const numbers = extractPhoneNumber(text);
+                const numbers = extractScreenNumber(text);
                 if (numbers.length === 10) {
                     phoneInput.value = numbers;
                     successElement.textContent = "Number pasted!";
