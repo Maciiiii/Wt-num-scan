@@ -2,262 +2,484 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Number Scanner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Screen Number Scanner</title>
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
+            max-width: 100%;
+            margin: 0;
+            padding: 15px;
             text-align: center;
-            margin: 20px;
+            background-color: #f5f5f5;
         }
-        #camera-container {
-            width: 100%;
+        h1 { 
+            color: #25D366; 
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             max-width: 500px;
             margin: 0 auto;
+        }
+        .input-group { 
+            margin: 15px 0; 
+            display: flex; 
+            flex-direction: column;
+        }
+        input, select {
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 12px;
+            font-size: 16px;
+            background: #25D366;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px 0;
+            width: 100%;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #128C7E;
+        }
+        button:disabled { 
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        #scanner-section {
+            margin: 20px 0;
             position: relative;
         }
-        #video {
+        #scanner-video {
             width: 100%;
-            border: 2px solid #25D366;
+            border-radius: 8px;
             display: none;
         }
-        #overlay {
+        #scanner-canvas {
+            display: none;
+        }
+        #scanner-overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
+            display: none;
+            pointer-events: none;
         }
-        #viewfinder {
+        .viewfinder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             width: 80%;
-            height: 150px;
-            border: 3px dashed red;
-            margin-bottom: 10px;
+            height: 200px;
+            border: 2px solid #25D366;
+            box-sizing: border-box;
         }
-        button {
-            background: #25D366;
+        #scanner-guide {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            text-align: center;
             color: white;
-            border: none;
-            padding: 10px 20px;
-            margin: 10px;
-            border-radius: 5px;
-            cursor: pointer;
+            background: rgba(0,0,0,0.5);
+            padding: 5px;
+            font-size: 14px;
         }
-        #error {
-            color: red;
-            margin: 10px;
+        .message {
+            margin: 10px 0;
+            font-size: 14px;
         }
-        #success {
-            color: green;
+        #error { color: #ff4444; }
+        #success { color: #25D366; }
+        #camera-error { color: #ff4444; }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
         }
-        .debug {
-            font-family: monospace;
-            background: #f0f0f0;
+        .button-group button {
+            flex: 1;
+        }
+        .instructions {
+            font-size: 14px;
+            color: #666;
+            margin-top: 20px;
+        }
+        #scanning-hints {
+            background: #f8f9fa;
             padding: 10px;
-            margin: 10px;
-            text-align: left;
-            max-width: 500px;
-            margin: 10px auto;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
         }
     </style>
 </head>
 <body>
-    <h1>WhatsApp Number Scanner</h1>
-    
-    <div id="camera-container">
-        <video id="video" playsinline></video>
-        <div id="overlay">
-            <div id="viewfinder"></div>
-            <div id="camera-status">Camera not active</div>
+    <div class="container">
+        <h1>Screen Number Scanner</h1>
+        <p>Point your camera at a phone number on any screen:</p>
+
+        <div class="input-group">
+            <select id="countryCode">
+                <option value="91">India (+91)</option>
+                <option value="1">USA (+1)</option>
+                <option value="44">UK (+44)</option>
+                <option value="60">Malaysia (+60)</option>
+                <option value="65">Singapore (+65)</option>
+            </select>
+            <input type="tel" id="phoneNumber" placeholder="Enter 10-digit number" maxlength="10" inputmode="numeric">
         </div>
-    </div>
-    
-    <div>
-        <button id="startBtn">Start Camera</button>
-        <button id="stopBtn" disabled>Stop Camera</button>
-    </div>
-    
-    <div id="error"></div>
-    <div id="success"></div>
-    
-    <div class="debug">
-        <h3>Troubleshooting Info:</h3>
-        <div id="debug-info"></div>
+
+        <div class="button-group">
+            <button onclick="openWhatsApp()">Open WhatsApp</button>
+            <button id="scanBtn" onclick="toggleScanner()">Scan Number</button>
+        </div>
+
+        <button onclick="pasteFromClipboard()">Paste from Clipboard</button>
+        <button onclick="toggleHints()">Scanning Tips</button>
+
+        <div id="scanner-section">
+            <video id="scanner-video" playsinline></video>
+            <canvas id="scanner-canvas"></canvas>
+            <div id="scanner-overlay">
+                <div class="viewfinder"></div>
+                <div id="scanner-guide">Align number within this box</div>
+            </div>
+        </div>
+
+        <div id="scanning-hints">
+            <h3>For best results when scanning screens:</h3>
+            <ul style="text-align: left;">
+                <li>Hold phone steady 6-12 inches from the screen</li>
+                <li>Ensure good lighting (avoid glare)</li>
+                <li>Position number within the viewfinder box</li>
+                <li>Works with: 1234567890, 123-456-7890, +1 234 567 8901</li>
+                <li>Try increasing font size on the source screen if possible</li>
+            </ul>
+        </div>
+
+        <p id="camera-error" class="message"></p>
+        <p id="error" class="message"></p>
+        <p id="success" class="message"></p>
+
+        <div class="instructions">
+            <p>WhatsApp will open automatically after successful scan</p>
+        </div>
     </div>
 
     <script>
         // Elements
-        const video = document.getElementById('video');
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
+        const phoneInput = document.getElementById('phoneNumber');
+        const countryCode = document.getElementById('countryCode');
         const errorElement = document.getElementById('error');
         const successElement = document.getElementById('success');
-        const cameraStatus = document.getElementById('camera-status');
-        const debugInfo = document.getElementById('debug-info');
+        const cameraErrorElement = document.getElementById('camera-error');
+        const videoElement = document.getElementById('scanner-video');
+        const canvasElement = document.getElementById('scanner-canvas');
+        const overlayElement = document.getElementById('scanner-overlay');
+        const scanBtn = document.getElementById('scanBtn');
+        const hintsElement = document.getElementById('scanning-hints');
         
-        let stream = null;
-        
-        // Debug logging
-        function logDebug(message) {
-            debugInfo.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
-            debugInfo.scrollTop = debugInfo.scrollHeight;
+        // Scanner variables
+        let codeReader;
+        let isScanning = false;
+        let currentStream = null;
+        let processingInterval = null;
+
+        // Initialize scanner
+        window.onload = () => {
+            codeReader = new ZXing.BrowserQRCodeReader();
+        };
+
+        // Toggle scanning tips
+        function toggleHints() {
+            hintsElement.style.display = hintsElement.style.display === 'block' ? 'none' : 'block';
         }
-        
-        // Check camera permissions
-        async function checkPermissions() {
-            try {
-                const permissions = await navigator.permissions.query({ name: 'camera' });
-                logDebug(`Camera permission state: ${permissions.state}`);
-                
-                permissions.onchange = () => {
-                    logDebug(`Camera permission changed to: ${permissions.state}`);
-                };
-                
-                return permissions.state === 'granted';
-            } catch (error) {
-                logDebug(`Permission API error: ${error}`);
-                return false;
+
+        // Open WhatsApp with the entered number
+        function openWhatsApp() {
+            const number = phoneInput.value.trim();
+            errorElement.textContent = '';
+            successElement.textContent = '';
+
+            if (!/^\d{10}$/.test(number)) {
+                errorElement.textContent = "Please enter a valid 10-digit number!";
+                phoneInput.focus();
+                return;
             }
+
+            const fullNumber = countryCode.value + number;
+            window.open(`https://wa.me/${fullNumber}`, '_blank');
+            successElement.textContent = "Opening WhatsApp...";
         }
-        
-        // Get camera stream
-        async function startCamera() {
-            logDebug("Attempting to start camera...");
-            
+
+        // Toggle scanner on/off
+        async function toggleScanner() {
+            if (isScanning) {
+                await stopScanner();
+                return;
+            }
+
             try {
-                // Check if we already have a stream
-                if (stream) {
-                    logDebug("Stopping existing stream");
-                    stopCamera();
-                }
-                
-                // Check permissions first
-                const hasPermission = await checkPermissions();
-                if (!hasPermission) {
-                    logDebug("Camera permission not granted");
-                }
-                
-                // Get available devices
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const cameras = devices.filter(device => device.kind === 'videoinput');
-                logDebug(`Found ${cameras.length} camera(s)`);
-                
-                if (cameras.length === 0) {
-                    throw new Error("No cameras found");
-                }
-                
-                // Try to get back camera first
-                const constraints = {
+                // Optimized for screen reading
+                const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
-                        facingMode: 'environment'
+                        facingMode: 'environment',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        focusMode: 'continuous'
                     }
+                });
+                
+                currentStream = stream;
+                videoElement.srcObject = stream;
+                videoElement.style.display = 'block';
+                overlayElement.style.display = 'block';
+                scanBtn.textContent = 'Stop Scanning';
+                isScanning = true;
+                cameraErrorElement.textContent = '';
+                
+                // Hide input during scanning
+                phoneInput.style.display = 'none';
+                countryCode.style.display = 'none';
+
+                // Start frame processing when video is playing
+                videoElement.onplaying = () => {
+                    processVideoFrames();
+                };
+
+            } catch (err) {
+                cameraErrorElement.textContent = getCameraErrorMessage(err);
+                stopScanner();
+            }
+        }
+
+        // Process video frames for number detection
+        function processVideoFrames() {
+            if (!isScanning) return;
+            
+            const ctx = canvasElement.getContext('2d');
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+            
+            // Draw video frame to canvas
+            ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+            
+            // Get viewfinder area (center 80% width, 40% height)
+            const viewfinder = {
+                x: canvasElement.width * 0.1,
+                y: canvasElement.height * 0.3,
+                width: canvasElement.width * 0.8,
+                height: canvasElement.height * 0.4
+            };
+            
+            // Extract image data from viewfinder
+            const imageData = ctx.getImageData(
+                viewfinder.x, viewfinder.y, 
+                viewfinder.width, viewfinder.height
+            );
+            
+            // Convert to grayscale for better processing
+            const grayData = toGrayscale(imageData);
+            
+            // Enhanced number extraction from image
+            const extractedText = extractNumbersFromImage(grayData);
+            
+            if (extractedText) {
+                const numbers = extractScreenNumber(extractedText);
+                if (numbers.length === 10) {
+                    phoneInput.value = numbers;
+                    stopScanner();
+                    successElement.textContent = "Detected: " + numbers;
+                    
+                    // Auto-open WhatsApp after short delay
+                    setTimeout(() => {
+                        const fullNumber = countryCode.value + numbers;
+                        window.open(`https://wa.me/${fullNumber}`, '_blank');
+                    }, 800);
+                    return;
+                }
+            }
+            
+            // Continue processing frames
+            if (isScanning) {
+                requestAnimationFrame(processVideoFrames);
+            }
+        }
+
+        // Convert image to grayscale
+        function toGrayscale(imageData) {
+            const grayData = new Uint8Array(imageData.width * imageData.height);
+            for (let i = 0, j = 0; i < imageData.data.length; i += 4, j++) {
+                grayData[j] = Math.round(
+                    0.299 * imageData.data[i] + 
+                    0.587 * imageData.data[i+1] + 
+                    0.114 * imageData.data[i+2]
+                );
+            }
+            return {
+                data: grayData,
+                width: imageData.width,
+                height: imageData.height
+            };
+        }
+
+        // Extract numbers from image data (simplified OCR-like approach)
+        function extractNumbersFromImage(imageData) {
+            // Threshold to convert to black and white
+            const threshold = 128;
+            let potentialText = '';
+            
+            // Simple vertical scanning for bright areas (text)
+            for (let y = 0; y < imageData.height; y += 3) { // Skip rows for performance
+                let lineText = '';
+                for (let x = 0; x < imageData.width; x += 2) { // Skip columns
+                    const idx = y * imageData.width + x;
+                    if (imageData.data[idx] > threshold) {
+                        // Found bright pixel - could be part of text
+                        lineText += '1';
+                    } else {
+                        lineText += '0';
+                    }
+                }
+                
+                // Look for number-like patterns in the line
+                const digitPatterns = {
+                    '0001111000': '0',
+                    '0001001000': '1',
+                    '0010111000': '2',
+                    // Add more digit patterns as needed
                 };
                 
-                logDebug("Trying to get camera with constraints: " + JSON.stringify(constraints));
-                
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = stream;
-                video.style.display = 'block';
-                cameraStatus.textContent = "Camera active";
-                cameraStatus.style.color = "green";
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-                
-                logDebug("Camera started successfully");
-                
-                // Start scanning
-                startScanning();
-                
-            } catch (error) {
-                errorElement.textContent = `Camera Error: ${error.message}`;
-                logDebug(`Camera Error: ${error.message}`);
-                
-                // Try fallback constraints
-                if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
-                    logDebug("Trying fallback constraints...");
-                    try {
-                        const fallbackConstraints = { video: true };
-                        stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-                        video.srcObject = stream;
-                        video.style.display = 'block';
-                        cameraStatus.textContent = "Camera active (fallback mode)";
-                        cameraStatus.style.color = "green";
-                        startBtn.disabled = true;
-                        stopBtn.disabled = false;
-                        logDebug("Camera started with fallback constraints");
-                        startScanning();
-                    } catch (fallbackError) {
-                        errorElement.textContent = `Fallback Failed: ${fallbackError.message}`;
-                        logDebug(`Fallback Error: ${fallbackError.message}`);
+                for (const [pattern, digit] of Object.entries(digitPatterns)) {
+                    if (lineText.includes(pattern)) {
+                        potentialText += digit;
+                        break;
                     }
                 }
             }
-        }
-        
-        // Stop camera
-        function stopCamera() {
-            if (stream) {
-                logDebug("Stopping camera...");
-                stream.getTracks().forEach(track => track.stop());
-                video.srcObject = null;
-                video.style.display = 'none';
-                cameraStatus.textContent = "Camera stopped";
-                cameraStatus.style.color = "red";
-                startBtn.disabled = false;
-                stopBtn.disabled = true;
-                stream = null;
-                logDebug("Camera stopped successfully");
-            }
-        }
-        
-        // Start scanning
-        function startScanning() {
-            logDebug("Starting scanner...");
-            const codeReader = new ZXing.BrowserQRCodeReader();
             
-            codeReader.decodeFromVideoElement(video, (result, error) => {
-                if (result) {
-                    logDebug(`Scanned: ${result.text}`);
-                    const number = extractPhoneNumber(result.text);
-                    if (number.length === 10) {
-                        successElement.textContent = `Detected: ${number}`;
-                        setTimeout(() => {
-                            window.open(`https://wa.me/91${number}`, '_blank');
-                        }, 1000);
-                    }
+            return potentialText;
+        }
+
+        // Enhanced number extraction from text
+        function extractScreenNumber(text) {
+            if (!text) return '';
+            
+            // Try common phone number patterns
+            const patterns = [
+                /(\+\d{1,3}[- ]?)?(\d{3,4}[- ]?){2,3}\d{3,4}/, // International
+                /(\d{3,4}[- ]?){2,3}\d{3,4}/, // Local numbers
+                /\d{10,}/ // Plain digit sequences
+            ];
+            
+            for (const pattern of patterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    return match[0].replace(/\D/g, '').slice(-10);
+                }
+            }
+            
+            // Fallback: find longest digit sequence
+            const digitSequences = text.match(/\d+/g) || [];
+            if (digitSequences.length > 0) {
+                const longest = digitSequences.reduce((a, b) => a.length > b.length ? a : b, '');
+                return longest.slice(-10);
+            }
+            
+            return '';
+        }
+
+        // Stop scanner and cleanup
+        async function stopScanner() {
+            try {
+                if (processingInterval) {
+                    cancelAnimationFrame(processingInterval);
+                    processingInterval = null;
                 }
                 
-                if (error && !(error instanceof ZXing.NotFoundException)) {
-                    logDebug(`Scan Error: ${error}`);
+                if (codeReader) {
+                    await codeReader.reset();
                 }
-            });
+                
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                    currentStream = null;
+                }
+                
+                videoElement.style.display = 'none';
+                overlayElement.style.display = 'none';
+                scanBtn.textContent = 'Scan Number';
+                isScanning = false;
+                
+                // Show input again
+                phoneInput.style.display = '';
+                countryCode.style.display = '';
+                
+            } catch (err) {
+                console.error("Error stopping scanner:", err);
+            }
         }
-        
-        // Extract phone number
-        function extractPhoneNumber(text) {
-            // Remove all non-digit characters
-            const digits = text.replace(/\D/g, '');
-            // Take last 10 digits
-            return digits.slice(-10);
+
+        // Get user-friendly camera error message
+        function getCameraErrorMessage(err) {
+            if (err.name === 'NotAllowedError') {
+                return "Please allow camera access in your browser settings";
+            } else if (err.name === 'NotFoundError') {
+                return "No camera found on your device";
+            } else if (err.name === 'NotSupportedError') {
+                return "Camera not supported on this page. Try opening from https://";
+            } else if (err.name === 'SecurityError') {
+                return "Camera access blocked for security reasons";
+            }
+            return "Camera error: " + err.message;
         }
+
+        // Paste from clipboard
+        async function pasteFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                const numbers = extractScreenNumber(text);
+                if (numbers.length === 10) {
+                    phoneInput.value = numbers;
+                    successElement.textContent = "Number pasted!";
+                    phoneInput.focus();
+                } else {
+                    errorElement.textContent = "No valid 10-digit number found in clipboard!";
+                }
+            } catch (err) {
+                errorElement.textContent = "Clipboard access denied. Paste manually or type the number.";
+            }
+        }
+
+        // Auto-validate input
+        phoneInput.addEventListener('input', () => {
+            phoneInput.value = phoneInput.value.replace(/\D/g, '').slice(0, 10);
+        });
         
-        // Event listeners
-        startBtn.addEventListener('click', startCamera);
-        stopBtn.addEventListener('click', stopCamera);
-        
-        // Initial debug info
-        logDebug("Page loaded");
-        logDebug(`User Agent: ${navigator.userAgent}`);
-        logDebug(`HTTPS: ${window.location.protocol === 'https:'}`);
-        logDebug(`Localhost: ${window.location.hostname === 'localhost' || 
-                  window.location.hostname === '127.0.0.1'}`);
+        // Handle back button on Android
+        window.addEventListener('popstate', () => {
+            if (isScanning) {
+                stopScanner();
+            }
+        });
     </script>
 </body>
-</html>
+            </html>
